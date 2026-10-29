@@ -1,6 +1,6 @@
 {
   "name": "pi-model-release-sort",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Sort pi's /model list by release date and hide the models you don't use, right from the model selector.",
   "type": "module",
   "license": "MIT",

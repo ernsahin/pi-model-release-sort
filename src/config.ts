@@ -14,6 +14,8 @@ export interface Config {
 	hiddenProviders: string[];
 	/** Hide models released more than this many months ago. null = never. */
 	hideOlderThanMonths: number | null;
+	/** Pinned models ("provider/id"), listed first in this exact order. */
+	favorites: string[];
 	/** Keys used inside the /model selector. */
 	keys: Keys;
 }
@@ -25,17 +27,49 @@ export interface Keys {
 	order: string;
 	/** Show or hide the hidden models in the list. */
 	showHidden: string;
+	/** Pin the highlighted model, or move it up among the pinned ones. */
+	moveUp: string;
+	/** Move the highlighted pinned model down; on the last one, unpin it. */
+	moveDown: string;
 }
 
-export const DEFAULT_KEYS: Readonly<Keys> = Object.freeze({ hide: "alt+h", order: "alt+o", showHidden: "alt+a" });
+export const DEFAULT_KEYS: Readonly<Keys> = Object.freeze({
+	hide: "alt+h",
+	order: "alt+o",
+	showHidden: "alt+a",
+	moveUp: "alt+up",
+	moveDown: "alt+down",
+});
 
 export const DEFAULT_CONFIG: Readonly<Config> = Object.freeze({
 	order: "newest",
 	hiddenModels: [],
 	hiddenProviders: [],
 	hideOlderThanMonths: null,
+	favorites: [],
 	keys: DEFAULT_KEYS,
 });
+
+/**
+ * Moves a model one step in the pinned list.
+ * Up: a model that is not pinned gets pinned at the end; a pinned one swaps with the one above.
+ * Down: a pinned one swaps with the one below; the last pinned one is unpinned.
+ */
+export function moveFavorite(favorites: readonly string[], key: string, dir: "up" | "down"): string[] {
+	const list = [...favorites];
+	const i = list.indexOf(key);
+	if (i < 0) return dir === "up" ? [...list, key] : list;
+	const j = dir === "up" ? i - 1 : i + 1;
+	if (j < 0) return list;
+	if (j >= list.length) return list.filter((k) => k !== key);
+	[list[i], list[j]] = [list[j] as string, list[i] as string];
+	return list;
+}
+
+/** "alt+up" → "alt+↑", for hints. */
+export function keyLabel(key: string): string {
+	return key.replace(/\bup\b/, "↑").replace(/\bdown\b/, "↓");
+}
 
 export function nextOrder(order: Order): Order {
 	return ORDERS[(ORDERS.indexOf(order) + 1) % ORDERS.length] ?? "newest";
@@ -65,6 +99,7 @@ export function parseConfig(raw: unknown): Config {
 		order: ORDERS.includes(obj.order as Order) ? (obj.order as Order) : DEFAULT_CONFIG.order,
 		hiddenModels: stringList(obj.hiddenModels),
 		hiddenProviders: stringList(obj.hiddenProviders),
+		favorites: stringList(obj.favorites),
 		hideOlderThanMonths:
 			typeof months === "number" && Number.isFinite(months) && months > 0 ? Math.floor(months) : null,
 	};

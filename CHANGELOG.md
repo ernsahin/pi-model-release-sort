@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-29
+
+### Added
+
+- Pin models and order them by hand: `alt+↑` pins the highlighted model or moves it up, `alt+↓` moves it
+  down (and unpins the last one). Works in `/model` and in the `/model-sort` panel. Pinned models show a ★.
+- "Pinned models" row in the Options tab to unpin all, and `/model-sort pin` / `unpin` subcommands.
+
 ## [0.4.0] - 2026-10-29
 
 ### Changed

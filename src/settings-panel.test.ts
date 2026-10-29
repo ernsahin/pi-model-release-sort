@@ -11,7 +11,7 @@ const { SettingsPanel } = await import("./settings-panel.ts");
 const { state, updateConfig } = await import("./state.ts");
 const { parseConfig } = await import("./config.ts");
 
-const K = { down: "\x1b[B", enter: "\r", tab: "\t", esc: "\x1b", ctrlX: "\x18", ctrlA: "\x01", ctrlO: "\x0f", ctrlC: "\x03" };
+const K = { altUp: "\x1b[1;3A", altDown: "\x1b[1;3B", down: "\x1b[B", enter: "\r", tab: "\t", esc: "\x1b", ctrlX: "\x18", ctrlA: "\x01", ctrlO: "\x0f", ctrlC: "\x03" };
 const models = Array.from({ length: 30 }, (_, i) => ({ provider: i % 2 ? "b" : "a", id: `m${String(i).padStart(2, "0")}` }));
 const theme = { fg: (_c: string, t: string) => t, bold: (t: string) => t } as never;
 
@@ -75,6 +75,18 @@ describe("SettingsPanel", () => {
 		assert.equal(state().config.hiddenModels.length, 0);
 	});
 
+	it("pins with alt+up and the cursor follows the model", () => {
+		const { press, selected } = setup();
+		press(K.down, K.down, K.down, K.altUp); // a/m06
+		assert.deepEqual(state().config.favorites, ["a/m06"]);
+		assert.match(selected(), /a\/m06 ★/);
+		press(K.down, K.altUp, K.altUp); // a/m00 is now row 2: pin it, then move above a/m06
+		assert.deepEqual(state().config.favorites, ["a/m00", "a/m06"]);
+		assert.match(selected(), /a\/m00 ★/);
+		press(K.altDown, K.altDown); // back below a/m06, then unpinned
+		assert.deepEqual(state().config.favorites, ["a/m06"]);
+	});
+
 	it("hides providers from the Providers tab", () => {
 		const { press } = setup();
 		press(K.tab, K.enter);
@@ -84,7 +96,7 @@ describe("SettingsPanel", () => {
 	it("asks twice before resetting", () => {
 		updateConfig((c) => ({ ...c, hiddenModels: ["a/m00"] }));
 		const { press } = setup();
-		press(K.tab, K.tab, K.down, K.down, K.down, K.enter);
+		press(K.tab, K.tab, K.down, K.down, K.down, K.down, K.enter);
 		assert.deepEqual(state().config.hiddenModels, ["a/m00"]);
 		press(K.enter);
 		assert.deepEqual(state().config.hiddenModels, []);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { arrangeModels, cutoffDate, isHidden } from "./arrange.ts";
+import { arrangeModels, cutoffDate, favoritesFirst, isHidden } from "./arrange.ts";
 import { type Config, parseConfig } from "./config.ts";
 
 const dates: Record<string, string> = {
@@ -62,6 +62,22 @@ describe("arrangeModels", () => {
 			"old",
 			"unknown",
 		]);
+	});
+
+	it("lists pinned favorites first in the user's order, before current/default", () => {
+		const config = cfg({ favorites: ["a/old", "x/unknown"] });
+		const pinRank = (m: { id: string }) => (m.id === "mid" ? 0 : undefined);
+		assert.deepEqual(ids(arrangeModels(models, { config, getDate, pinRank })), [
+			"old",
+			"unknown",
+			"mid",
+			"new",
+			"newer-same-day",
+		]);
+	});
+
+	it("favoritesFirst keeps the rest in place", () => {
+		assert.deepEqual(ids(favoritesFirst(models, ["b/new", "a/old"])), ["new", "old", "unknown", "mid", "newer-same-day"]);
 	});
 
 	it("does not mutate its input", () => {

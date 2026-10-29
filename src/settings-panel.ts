@@ -1,7 +1,16 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { fuzzyFilter, getKeybindings, Input, Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
+import { fuzzyFilter, getKeybindings, Input, Key, type KeyId, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import { arrangeModels, hiddenReason as reasonFor } from "./arrange.ts";
-import { type Config, DEFAULT_CONFIG, modelKey, nextOrder, type Order, parseConfig } from "./config.ts";
+import {
+	type Config,
+	DEFAULT_CONFIG,
+	keyLabel,
+	modelKey,
+	moveFavorite,
+	nextOrder,
+	type Order,
+	parseConfig,
+} from "./config.ts";
 import { getDate, refreshDates, state, updateConfig } from "./state.ts";
 
 /*
@@ -27,7 +36,7 @@ type Tab = "models" | "providers" | "options";
 const TABS: Tab[] = ["models", "providers", "options"];
 const TAB_LABEL: Record<Tab, string> = { models: "Models", providers: "Providers", options: "Options" };
 const AGE_STEPS: Array<number | null> = [null, 3, 6, 12, 18, 24];
-const OPTION_ROWS = ["order", "age", "refresh", "reset"] as const;
+const OPTION_ROWS = ["order", "age", "favorites", "refresh", "reset"] as const;
 type OptionRow = (typeof OPTION_ROWS)[number];
 const ORDER_LABEL: Record<Order, string> = { newest: "newest first", oldest: "oldest first", off: "pi's order" };
 
@@ -46,8 +55,9 @@ export class SettingsPanel {
 	private readonly search = new Input();
 	private readonly cursor: Record<Tab, number> = { models: 0, providers: 0, options: 0 };
 	private flash = "";
-	private resetArmed = false;
-	private armedBefore = false;
+	/** Option row waiting for a second Enter (clear pinned / reset). */
+	private armed: OptionRow | undefined;
+	private armedBefore: OptionRow | undefined;
 	private busy = false;
 	private _focused = false;
 
@@ -189,9 +199,16 @@ export class SettingsPanel {
 				});
 			return;
 		}
-		if (!this.armedBefore) {
-			this.resetArmed = true;
-			return this.say("Press Enter again to reset all settings.");
+		if (row === "favorites" && this.config.favorites.length === 0) {
+			return this.say(`Nothing pinned yet. Press ${keyLabel(this.config.keys.moveUp)} on a model to pin it.`);
+		}
+		if (this.armedBefore !== row) {
+			this.armed = row;
+			return this.say(row === "reset" ? "Press Enter again to reset all settings." : "Press Enter again to unpin all models.");
+		}
+		if (row === "favorites") {
+			updateConfig((c) => ({ ...c, favorites: [] }));
+			return this.say("All models unpinned.");
 		}
 		updateConfig(() => parseConfig(DEFAULT_CONFIG));
 		this.say("All settings reset.");
@@ -200,8 +217,8 @@ export class SettingsPanel {
 	handleInput(data: string): void {
 		const kb = getKeybindings();
 		// Reset needs two Enter presses in a row; any other key disarms it.
-		this.armedBefore = this.resetArmed;
-		this.resetArmed = false;
+		this.armedBefore = this.armed;
+		this.armed = undefined;
 		this.flash = "";
 		const count = this.rowCount();
 		const move = (to: number) => {
@@ -248,10 +265,27 @@ export class SettingsPanel {
 			if (row) this.bulk(hideable(rows.slice(at + 1)), true, "below the cursor");
 		} else if (matchesKey(data, Key.ctrl("p"))) {
 			if (row) this.toggleProvider(row.provider);
+		} else if (matchesKey(data, this.config.keys.moveUp as KeyId) || matchesKey(data, this.config.keys.moveDown as KeyId)) {
+			if (row) this.move(row, matchesKey(data, this.config.keys.moveUp as KeyId) ? "up" : "down");
 		} else {
 			this.search.handleInput(data);
 			this.cursor.models = 0;
 		}
+	}
+
+	private move(m: PanelModel, dir: "up" | "down") {
+		const key = modelKey(m.provider, m.id);
+		const before = this.config.favorites;
+		if (dir === "down" && !before.includes(key)) {
+			return this.say(`Only pinned models can be moved. Press ${keyLabel(this.config.keys.moveUp)} to pin this one.`);
+		}
+		const after = moveFavorite(before, key, dir);
+		updateConfig((c) => ({ ...c, favorites: after }));
+		if (!before.includes(key)) this.say(`Pinned ${key}. Keep pressing ${keyLabel(this.config.keys.moveUp)} to move it higher.`);
+		else if (!after.includes(key)) this.say(`Unpinned ${key}; it is back in date order.`);
+		// Follow the model to its new row.
+		const i = this.modelRows().findIndex((r) => r.provider === m.provider && r.id === m.id);
+		if (i >= 0) this.cursor.models = i;
 	}
 
 	private handleProviderKey(data: string, at: number) {
@@ -338,9 +372,10 @@ export class SettingsPanel {
 			if (reason === "age") notes.push(`older than ${config.hideOlderThanMonths} months`);
 			const pin = this.pinned(m);
 			if (pin) notes.push(`${pin}, always shown`);
+			const star = config.favorites.includes(key) ? t.fg("accent", " ★") : "";
 			const cursor = selected ? t.fg("accent", "→ ") : "  ";
 			const name = selected ? t.fg("accent", key) : reason ? t.fg("muted", key) : key;
-			return `${cursor}${this.status(reason)}  ${name}  ${t.fg("dim", date ?? "no date")}${notes.length ? t.fg("muted", ` · ${notes.join(" · ")}`) : ""}`;
+			return `${cursor}${this.status(reason)}  ${name}${star}  ${t.fg("dim", date ?? "no date")}${notes.length ? t.fg("muted", ` · ${notes.join(" · ")}`) : ""}`;
 		});
 	}
 
@@ -368,7 +403,13 @@ export class SettingsPanel {
 				"Refresh release dates",
 				dates ? `last update ${new Date(dates.fetchedAt).toLocaleString()}` : "never downloaded",
 			],
-			reset: ["Reset all settings", this.resetArmed ? "press Enter again" : ""],
+			favorites: [
+				"Pinned models",
+				this.armed === "favorites"
+					? "press Enter again to unpin all"
+					: `${config.favorites.length} pinned${config.favorites.length ? " · Enter to unpin all" : ""}`,
+			],
+			reset: ["Reset all settings", this.armed === "reset" ? "press Enter again" : ""],
 		};
 		const at = this.cursor.options;
 		const lines = OPTION_ROWS.map((row, i) => {
@@ -379,7 +420,12 @@ export class SettingsPanel {
 		});
 		const { keys } = config;
 		lines.push("");
-		lines.push(t.fg("dim", `  In /model: ${keys.hide} hide/unhide · ${keys.order} order · ${keys.showHidden} show hidden`));
+		lines.push(
+			t.fg(
+				"dim",
+				`  In /model: ${keys.hide} hide/unhide · ${keyLabel(keys.moveUp)}/${keyLabel(keys.moveDown)} move · ${keys.order} order · ${keys.showHidden} show hidden`,
+			),
+		);
 		lines.push(t.fg("dim", "  Keys can be changed in ~/.pi/agent/model-release-sort.json"));
 		return lines;
 	}
@@ -387,7 +433,7 @@ export class SettingsPanel {
 	private footer(): string[] {
 		if (this.tab === "models") {
 			return [
-				"type to search · enter hide/show · ctrl+p hide/show provider",
+				`type to search · enter hide/show · ${keyLabel(this.config.keys.moveUp)}/${keyLabel(this.config.keys.moveDown)} pin & move · ctrl+p hide/show provider`,
 				"ctrl+x hide all listed · ctrl+a show all listed · ctrl+o hide all below · tab next tab · esc close",
 			];
 		}

@@ -1,7 +1,7 @@
 import { ModelSelectorComponent, type Theme } from "@earendil-works/pi-coding-agent";
 import { type KeyId, matchesKey, Text } from "@earendil-works/pi-tui";
-import { arrangeModels, hiddenReason, isHidden } from "./arrange.ts";
-import { modelKey, nextOrder } from "./config.ts";
+import { arrangeModels, favoritesFirst, hiddenReason, isHidden } from "./arrange.ts";
+import { keyLabel, modelKey, moveFavorite, nextOrder } from "./config.ts";
 import { getDate, state, updateConfig } from "./state.ts";
 
 /*
@@ -100,6 +100,7 @@ function hintLine(self: Selector): string {
 	}
 	const parts = [
 		`${keys.hide} hide/unhide`,
+		`${keyLabel(keys.moveUp)}/${keyLabel(keys.moveDown)} move`,
 		`${keys.order} order: ${config.order}`,
 		own.showHidden ? `${keys.showHidden} hide hidden` : `${keys.showHidden} show hidden (${own.hiddenCount})`,
 	];
@@ -124,7 +125,7 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 		const pin = (item: Item) => pinRank(this, item.model);
 		own.hiddenCount = models.filter((m) => pin(m) === undefined && isHidden(m, config, getDate)).length;
 		const arranged = arrangeModels(models, { config, getDate, pinRank: pin, showHidden: own.showHidden });
-		return config.order === "off" ? original.sortModels.call(this, arranged) : arranged;
+		return config.order === "off" ? favoritesFirst(original.sortModels.call(this, arranged), config.favorites) : arranged;
 	};
 
 	// "Scoped" tab: pi builds it from this.scopedModels, so arrange a copy of the original list.
@@ -133,12 +134,16 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 		if (Array.isArray(this.scopedModels)) {
 			own.scopedSource ??= this.scopedModels;
 			const items = own.scopedSource.map((scoped) => ({ ...scoped.model, scoped }));
-			this.scopedModels = arrangeModels(items, {
-				config: state().config,
+			const { config } = state();
+			const arranged = arrangeModels(items, {
+				config,
 				getDate,
 				pinRank: (item) => pinRank(this, item),
 				showHidden: own.showHidden,
-			}).map((item) => item.scoped);
+			});
+			this.scopedModels = (config.order === "off" ? favoritesFirst(arranged, config.favorites) : arranged).map(
+				(item) => item.scoped,
+			);
 		}
 		return original.loadModelsFromSnapshot.apply(this, args);
 	};
@@ -157,6 +162,7 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 				if (!item || typeof row?.text !== "string" || !row.setText || !row.text.includes(item.id)) continue;
 				const date = getDate(item.provider, item.id);
 				let badge = date ? paint("dim", ` · ${date}`) : "";
+				if (config.favorites.includes(modelKey(item.provider, item.id))) badge += paint("accent", " ★");
 				if (isHidden(item, config, getDate)) badge += paint("warning", " · hidden");
 				row.setText(row.text + badge);
 			}
@@ -194,6 +200,25 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 						? c.hiddenModels.filter((k) => k !== key)
 						: [...c.hiddenModels, key],
 				}));
+				rebuild(this);
+			}
+			return;
+		}
+		if (keyMatches(data, keys.moveUp) || keyMatches(data, keys.moveDown)) {
+			const item = this.filteredModels[this.selectedIndex];
+			if (item) {
+				const dir = keyMatches(data, keys.moveUp) ? "up" : "down";
+				const key = modelKey(item.provider, item.id);
+				const before = state().config.favorites;
+				const after = moveFavorite(before, key, dir);
+				if (dir === "down" && !before.includes(key)) {
+					own.flash = `Only pinned models can be moved. Press ${keyLabel(keys.moveUp)} to pin this one.`;
+				} else if (!before.includes(key)) {
+					own.flash = `Pinned ${item.id}. Keep pressing ${keyLabel(keys.moveUp)} to move it higher.`;
+				} else if (!after.includes(key)) {
+					own.flash = `Unpinned ${item.id}; it is back in date order.`;
+				}
+				updateConfig((c) => ({ ...c, favorites: after }));
 				rebuild(this);
 			}
 			return;

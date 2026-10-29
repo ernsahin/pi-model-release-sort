@@ -56,7 +56,20 @@ export interface ArrangeOptions<T> {
 	now?: Date;
 }
 
-/** Removes hidden models and sorts the rest. With order "off", only hiding is applied. */
+/** Puts pinned favorites first, in the user's order. Everything else keeps its relative order. */
+export function favoritesFirst<T extends ModelRef>(items: readonly T[], favorites: readonly string[]): T[] {
+	if (favorites.length === 0) return [...items];
+	const rank = new Map(favorites.map((key, i) => [key, i]));
+	const pinned = items.filter((m) => rank.has(modelKey(m.provider, m.id)));
+	pinned.sort((a, b) => (rank.get(modelKey(a.provider, a.id)) ?? 0) - (rank.get(modelKey(b.provider, b.id)) ?? 0));
+	return [...pinned, ...items.filter((m) => !rank.has(modelKey(m.provider, m.id)))];
+}
+
+/**
+ * Removes hidden models and sorts the rest: favorites first (in the user's order), then pinned
+ * current/default models, then by release date. With order "off", only hiding is applied and the
+ * caller sorts (favorites are moved first afterwards).
+ */
 export function arrangeModels<T extends ModelRef>(items: readonly T[], opts: ArrangeOptions<T>): T[] {
 	const { config, getDate, pinRank = () => undefined, now, showHidden = false } = opts;
 	const visible = items.filter(
@@ -64,10 +77,11 @@ export function arrangeModels<T extends ModelRef>(items: readonly T[], opts: Arr
 	);
 	if (config.order === "off") return visible;
 	const order = config.order;
-	return visible.sort((a, b) => {
+	const sorted = visible.sort((a, b) => {
 		const ra = pinRank(a) ?? Number.POSITIVE_INFINITY;
 		const rb = pinRank(b) ?? Number.POSITIVE_INFINITY;
 		if (ra !== rb) return ra - rb;
 		return compareByDate(a, b, order, getDate);
 	});
+	return favoritesFirst(sorted, config.favorites);
 }
