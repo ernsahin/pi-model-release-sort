@@ -25,9 +25,29 @@ pi -e npm:pi-model-release-sort
 - The "scoped" tab is sorted and filtered the same way.
 - You can hide single models, whole providers, or every model older than N months.
 
+## In the `/model` window
+
+Open `/model` as usual. Each model shows its release date, and three extra keys work:
+
+```
+→ ✓ gpt-5.5 [openai-codex] · 2026-04-23
+    gpt-6-astra [openai-codex] · 2026-09-04 · hidden
+    gpt-5.6-luna [openai-codex] · 2026-07-09
+  alt+h hide/unhide · alt+o order: newest · alt+a show hidden (3)
+```
+
+| Key | What it does |
+|---|---|
+| `alt+h` | Hide the highlighted model (or unhide it, when hidden models are shown) |
+| `alt+o` | Switch the order: newest → oldest → pi's order |
+| `alt+a` | Show hidden models (marked `hidden`) or hide them again |
+
+Typing still searches, and every other key works as in plain pi.
+The keys can be changed in the settings file (see below).
+
 ## Settings
 
-Run `/model-sort` to open the settings menu:
+For providers and age-based hiding, run `/model-sort` to open the settings menu:
 
 ```
 Model list · 12 hidden
@@ -62,11 +82,14 @@ Settings are saved in `~/.pi/agent/model-release-sort.json`:
   "order": "newest",
   "hiddenModels": ["openai/gpt-4o"],
   "hiddenProviders": ["openrouter"],
-  "hideOlderThanMonths": 12
+  "hideOlderThanMonths": 12,
+  "keys": { "hide": "alt+h", "order": "alt+o", "showHidden": "alt+a" }
 }
 ```
 
-Defaults: `order` is `"newest"`, nothing is hidden.
+Defaults: `order` is `"newest"`, nothing is hidden, keys as above.
+Key names use pi's format (`alt+h`, `ctrl+shift+x`, …). If a key does not reach pi in your terminal,
+pick another one.
 
 ## Where release dates come from
 
@@ -80,8 +103,8 @@ pi's model data has no release dates, so they are taken from the public
 
 ## Compatibility
 
-pi does not let extensions replace the built-in `/model` command. This package wraps two internal
-methods of pi's `ModelSelectorComponent` (`sortModels` and `loadModelsFromSnapshot`). Tested with
+pi does not let extensions replace the built-in `/model` command. This package wraps internal methods
+of pi's `ModelSelectorComponent` (`sortModels`, `loadModelsFromSnapshot`, `updateList`, `handleInput`). Tested with
 pi 1.4.0. If a future pi release changes those methods, the package shows a warning and pi falls back
 to its normal order. Nothing breaks.
 

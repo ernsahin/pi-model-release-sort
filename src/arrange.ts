@@ -39,13 +39,17 @@ export interface ArrangeOptions<T> {
 	getDate: DateLookup;
 	/** Lower rank sorts first and is never hidden (pi uses 0 = current model, 1 = default model). */
 	pinRank?: (item: T) => number | undefined;
+	/** Keep hidden models in the result (they are still sorted). */
+	showHidden?: boolean;
 	now?: Date;
 }
 
 /** Removes hidden models and sorts the rest. With order "off", only hiding is applied. */
 export function arrangeModels<T extends ModelRef>(items: readonly T[], opts: ArrangeOptions<T>): T[] {
-	const { config, getDate, pinRank = () => undefined, now } = opts;
-	const visible = items.filter((item) => pinRank(item) !== undefined || !isHidden(item, config, getDate, now));
+	const { config, getDate, pinRank = () => undefined, now, showHidden = false } = opts;
+	const visible = items.filter(
+		(item) => showHidden || pinRank(item) !== undefined || !isHidden(item, config, getDate, now),
+	);
 	if (config.order === "off") return visible;
 	const order = config.order;
 	return visible.sort((a, b) => {

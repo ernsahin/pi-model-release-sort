@@ -53,6 +53,17 @@ describe("arrangeModels", () => {
 		assert.deepEqual(ids(arrangeModels(models, { config, getDate })), ["old", "unknown", "mid"]);
 	});
 
+	it("keeps hidden models when showHidden is set", () => {
+		const config = cfg({ hiddenProviders: ["b"] });
+		assert.deepEqual(ids(arrangeModels(models, { config, getDate, showHidden: true })), [
+			"new",
+			"newer-same-day",
+			"mid",
+			"old",
+			"unknown",
+		]);
+	});
+
 	it("does not mutate its input", () => {
 		const input = [...models];
 		arrangeModels(input, { config: cfg(), getDate });

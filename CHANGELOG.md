@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-29
+
+### Added
+
+- Keys inside the `/model` window: `alt+h` hide/unhide, `alt+o` change order, `alt+a` show hidden models.
+- Release date shown next to each model in `/model`.
+- `keys` setting to change those keys.
+
 ## [0.2.0] - 2026-10-29
 
 ### Added

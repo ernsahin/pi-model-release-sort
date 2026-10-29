@@ -11,7 +11,7 @@ export default function (pi: ExtensionAPI) {
 	let listModels: () => Array<{ provider: string; id: string }> = () => [];
 
 	pi.on("session_start", (_event, ctx) => {
-		if (!patchModelSelector()) {
+		if (!patchModelSelector(() => ctx.ui.theme)) {
 			ctx.ui.notify("pi-model-release-sort: this pi version is not supported; using pi's default order.", "warning");
 		}
 		listModels = () => ctx.modelRegistry.getAvailable();

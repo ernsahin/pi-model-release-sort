@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { DEFAULT_CONFIG, parseConfig } from "./config.ts";
+import { DEFAULT_CONFIG, nextOrder, parseConfig } from "./config.ts";
 
 describe("parseConfig", () => {
 	it("returns defaults for missing or invalid input", () => {
@@ -15,8 +15,28 @@ describe("parseConfig", () => {
 				hiddenProviders: "nope",
 				hideOlderThanMonths: 6.7,
 			}),
-			{ order: "oldest", hiddenModels: ["a/b"], hiddenProviders: [], hideOlderThanMonths: 6 },
+			{
+				order: "oldest",
+				hiddenModels: ["a/b"],
+				hiddenProviders: [],
+				hideOlderThanMonths: 6,
+				keys: { hide: "alt+h", order: "alt+o", showHidden: "alt+a" },
+			},
 		);
+	});
+
+	it("reads custom keys and keeps defaults for the rest", () => {
+		assert.deepEqual(parseConfig({ keys: { hide: " Ctrl+Y ", order: 5 } }).keys, {
+			hide: "ctrl+y",
+			order: "alt+o",
+			showHidden: "alt+a",
+		});
+	});
+
+	it("cycles the order", () => {
+		assert.equal(nextOrder("newest"), "oldest");
+		assert.equal(nextOrder("oldest"), "off");
+		assert.equal(nextOrder("off"), "newest");
 	});
 
 	it("rejects unknown order and non-positive months", () => {
