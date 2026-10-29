@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-29
+
+### Changed
+
+- `alt+↑` / `alt+↓` now move a model exactly one row, in `/model` and in the panel. The first move switches
+  to a new **custom** order that keeps your whole arrangement; `alt+o` switches between it and date order.
+  This replaces the pinned list from 0.5.0, where moves jumped to the top or back to the date position.
+- Models you haven't placed yet show up at the top of the custom order, marked `new`.
+- Subcommands `pin` / `unpin` are replaced by `custom` and `clear-order`.
+
 ## [0.5.0] - 2026-10-29
 
 ### Added

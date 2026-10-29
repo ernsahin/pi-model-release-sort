@@ -1,12 +1,12 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { fuzzyFilter, getKeybindings, Input, Key, type KeyId, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
-import { arrangeModels, hiddenReason as reasonFor } from "./arrange.ts";
+import { arrangeModels, isUnplaced, hiddenReason as reasonFor } from "./arrange.ts";
 import {
 	type Config,
 	DEFAULT_CONFIG,
 	keyLabel,
 	modelKey,
-	moveFavorite,
+	moveInOrder,
 	nextOrder,
 	type Order,
 	parseConfig,
@@ -36,9 +36,14 @@ type Tab = "models" | "providers" | "options";
 const TABS: Tab[] = ["models", "providers", "options"];
 const TAB_LABEL: Record<Tab, string> = { models: "Models", providers: "Providers", options: "Options" };
 const AGE_STEPS: Array<number | null> = [null, 3, 6, 12, 18, 24];
-const OPTION_ROWS = ["order", "age", "favorites", "refresh", "reset"] as const;
+const OPTION_ROWS = ["order", "age", "custom", "refresh", "reset"] as const;
 type OptionRow = (typeof OPTION_ROWS)[number];
-const ORDER_LABEL: Record<Order, string> = { newest: "newest first", oldest: "oldest first", off: "pi's order" };
+const ORDER_LABEL: Record<Order, string> = {
+	newest: "newest first",
+	oldest: "oldest first",
+	off: "pi's order",
+	custom: "your order",
+};
 
 function hiddenReason(m: PanelModel, config: Config) {
 	return reasonFor(m, config, getDate);
@@ -55,7 +60,7 @@ export class SettingsPanel {
 	private readonly search = new Input();
 	private readonly cursor: Record<Tab, number> = { models: 0, providers: 0, options: 0 };
 	private flash = "";
-	/** Option row waiting for a second Enter (clear pinned / reset). */
+	/** Option row waiting for a second Enter (clear custom order / reset). */
 	private armed: OptionRow | undefined;
 	private armedBefore: OptionRow | undefined;
 	private busy = false;
@@ -99,11 +104,12 @@ export class SettingsPanel {
 		return state().config;
 	}
 
-	private modelRows(): PanelModel[] {
+	/** Rows in display order; `filtered` applies the search. */
+	private modelRows(filtered = true): PanelModel[] {
 		const config = this.config;
 		const order = config.order === "off" ? "newest" : config.order;
 		const sorted = arrangeModels(this.models, { config: { ...config, order }, getDate, showHidden: true });
-		const query = this.search.getValue().trim();
+		const query = filtered ? this.search.getValue().trim() : "";
 		if (!query) return sorted;
 		return fuzzyFilter(sorted, query, (m) => `${m.provider} ${m.id} ${m.name ?? ""}`);
 	}
@@ -175,7 +181,8 @@ export class SettingsPanel {
 	private changeOption(row: OptionRow, step: 1 | -1) {
 		if (row === "order") {
 			let order = this.config.order;
-			for (let i = 0; i < (step === 1 ? 1 : 2); i++) order = nextOrder(order);
+			const hasCustom = this.config.customOrder.length > 0;
+			for (let i = 0; i < (step === 1 ? 1 : hasCustom ? 3 : 2); i++) order = nextOrder(order, hasCustom);
 			updateConfig((c) => ({ ...c, order }));
 		} else if (row === "age") {
 			const i = AGE_STEPS.indexOf(this.config.hideOlderThanMonths);
@@ -199,16 +206,16 @@ export class SettingsPanel {
 				});
 			return;
 		}
-		if (row === "favorites" && this.config.favorites.length === 0) {
-			return this.say(`Nothing pinned yet. Press ${keyLabel(this.config.keys.moveUp)} on a model to pin it.`);
+		if (row === "custom" && this.config.customOrder.length === 0) {
+			return this.say(`No custom order yet. Press ${keyLabel(this.config.keys.moveUp)} on a model to start one.`);
 		}
 		if (this.armedBefore !== row) {
 			this.armed = row;
-			return this.say(row === "reset" ? "Press Enter again to reset all settings." : "Press Enter again to unpin all models.");
+			return this.say(row === "reset" ? "Press Enter again to reset all settings." : "Press Enter again to forget your custom order.");
 		}
-		if (row === "favorites") {
-			updateConfig((c) => ({ ...c, favorites: [] }));
-			return this.say("All models unpinned.");
+		if (row === "custom") {
+			updateConfig((c) => ({ ...c, customOrder: [], order: c.order === "custom" ? "newest" : c.order }));
+			return this.say("Custom order cleared. Back to newest first.");
 		}
 		updateConfig(() => parseConfig(DEFAULT_CONFIG));
 		this.say("All settings reset.");
@@ -274,15 +281,14 @@ export class SettingsPanel {
 	}
 
 	private move(m: PanelModel, dir: "up" | "down") {
-		const key = modelKey(m.provider, m.id);
-		const before = this.config.favorites;
-		if (dir === "down" && !before.includes(key)) {
-			return this.say(`Only pinned models can be moved. Press ${keyLabel(this.config.keys.moveUp)} to pin this one.`);
+		const keyOf = (r: PanelModel) => modelKey(r.provider, r.id);
+		// Base is the whole list (hidden models too), so their places are kept.
+		const next = moveInOrder(this.modelRows(false).map(keyOf), this.modelRows().map(keyOf), keyOf(m), dir);
+		if (!next) return this.say(dir === "up" ? "Already at the top." : "Already at the bottom.");
+		if (this.config.order !== "custom") {
+			this.say(`Custom order on. Change it back under Options; your order is kept.`);
 		}
-		const after = moveFavorite(before, key, dir);
-		updateConfig((c) => ({ ...c, favorites: after }));
-		if (!before.includes(key)) this.say(`Pinned ${key}. Keep pressing ${keyLabel(this.config.keys.moveUp)} to move it higher.`);
-		else if (!after.includes(key)) this.say(`Unpinned ${key}; it is back in date order.`);
+		updateConfig((c) => ({ ...c, order: "custom", customOrder: next }));
 		// Follow the model to its new row.
 		const i = this.modelRows().findIndex((r) => r.provider === m.provider && r.id === m.id);
 		if (i >= 0) this.cursor.models = i;
@@ -372,7 +378,7 @@ export class SettingsPanel {
 			if (reason === "age") notes.push(`older than ${config.hideOlderThanMonths} months`);
 			const pin = this.pinned(m);
 			if (pin) notes.push(`${pin}, always shown`);
-			const star = config.favorites.includes(key) ? t.fg("accent", " ★") : "";
+			const star = isUnplaced(m, config) ? t.fg("accent", " · new") : "";
 			const cursor = selected ? t.fg("accent", "→ ") : "  ";
 			const name = selected ? t.fg("accent", key) : reason ? t.fg("muted", key) : key;
 			return `${cursor}${this.status(reason)}  ${name}${star}  ${t.fg("dim", date ?? "no date")}${notes.length ? t.fg("muted", ` · ${notes.join(" · ")}`) : ""}`;
@@ -403,11 +409,13 @@ export class SettingsPanel {
 				"Refresh release dates",
 				dates ? `last update ${new Date(dates.fetchedAt).toLocaleString()}` : "never downloaded",
 			],
-			favorites: [
-				"Pinned models",
-				this.armed === "favorites"
-					? "press Enter again to unpin all"
-					: `${config.favorites.length} pinned${config.favorites.length ? " · Enter to unpin all" : ""}`,
+			custom: [
+				"Custom order",
+				this.armed === "custom"
+					? "press Enter again to forget it"
+					: config.customOrder.length
+						? `${config.customOrder.length} models placed · Enter to forget`
+						: `none yet · ${keyLabel(config.keys.moveUp)}/${keyLabel(config.keys.moveDown)} on a model starts one`,
 			],
 			reset: ["Reset all settings", this.armed === "reset" ? "press Enter again" : ""],
 		};
@@ -433,7 +441,7 @@ export class SettingsPanel {
 	private footer(): string[] {
 		if (this.tab === "models") {
 			return [
-				`type to search · enter hide/show · ${keyLabel(this.config.keys.moveUp)}/${keyLabel(this.config.keys.moveDown)} pin & move · ctrl+p hide/show provider`,
+				`type to search · enter hide/show · ${keyLabel(this.config.keys.moveUp)}/${keyLabel(this.config.keys.moveDown)} move · ctrl+p hide/show provider`,
 				"ctrl+x hide all listed · ctrl+a show all listed · ctrl+o hide all below · tab next tab · esc close",
 			];
 		}

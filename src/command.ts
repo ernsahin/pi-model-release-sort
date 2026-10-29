@@ -16,8 +16,8 @@ const SUBCOMMANDS: Record<string, string> = {
 	off: "pi's built-in order",
 	hide: "hide <provider/model> — hide one model",
 	unhide: "unhide <provider/model> — show a hidden model again",
-	pin: "pin <provider/model> — keep a model at the top (in pin order)",
-	unpin: "unpin <provider/model> — back to date order",
+	custom: "Your own order (move models with alt+↑/↓ in /model)",
+	"clear-order": "Forget your custom order",
 	"hide-provider": "hide-provider <provider> — hide all models of a provider",
 	"unhide-provider": "unhide-provider <provider>",
 	"older-than": "older-than <months|off> — hide models older than N months",
@@ -33,7 +33,7 @@ function toggle(list: string[], value: string, on: boolean): string[] {
 
 function describe(config: Config): string {
 	const parts = [`order: ${config.order}`];
-	parts.push(`pinned: ${config.favorites.length}`);
+	parts.push(`custom order: ${config.customOrder.length} models`);
 	parts.push(`hidden models: ${config.hiddenModels.length}`);
 	parts.push(`hidden providers: ${config.hiddenProviders.length ? config.hiddenProviders.join(", ") : "none"}`);
 	parts.push(`older than: ${config.hideOlderThanMonths ? `${config.hideOlderThanMonths} months` : "off"}`);
@@ -78,15 +78,16 @@ async function runArgs(args: string, ctx: Ctx) {
 	const action = sub.toLowerCase();
 	const known = new Set(ctx.modelRegistry.getAvailable().map((m) => modelKey(m.provider, m.id)));
 
-	if (ORDERS.includes(action as Order)) {
+	if (action === "custom" && state().config.customOrder.length === 0) {
+		return ctx.ui.notify("No custom order yet. Move a model with alt+↑/↓ in /model to start one.", "warning");
+	} else if (ORDERS.includes(action as Order)) {
 		updateConfig((c) => ({ ...c, order: action as Order }));
 	} else if (action === "hide" || action === "unhide") {
 		if (!value) return ctx.ui.notify(`Usage: /model-sort ${action} <provider/model>`, "warning");
 		if (action === "hide" && !known.has(value)) ctx.ui.notify(`Note: "${value}" is not an available model.`, "warning");
 		updateConfig((c) => ({ ...c, hiddenModels: toggle(c.hiddenModels, value, action === "hide") }));
-	} else if (action === "pin" || action === "unpin") {
-		if (!value) return ctx.ui.notify(`Usage: /model-sort ${action} <provider/model>`, "warning");
-		updateConfig((c) => ({ ...c, favorites: toggle(c.favorites, value, action === "pin") }));
+	} else if (action === "clear-order") {
+		updateConfig((c) => ({ ...c, customOrder: [], order: c.order === "custom" ? "newest" : c.order }));
 	} else if (action === "hide-provider" || action === "unhide-provider") {
 		if (!value) return ctx.ui.notify(`Usage: /model-sort ${action} <provider>`, "warning");
 		updateConfig((c) => ({ ...c, hiddenProviders: toggle(c.hiddenProviders, value, action === "hide-provider") }));
@@ -117,8 +118,7 @@ export function registerCommand(pi: ExtensionAPI, listModels: () => ModelRef[]) 
 			const query = rest.join(" ");
 			const config = state().config;
 			let values: string[] = [];
-			if (sub === "hide" || sub === "pin") values = listModels().map((m) => modelKey(m.provider, m.id));
-			else if (sub === "unpin") values = config.favorites;
+			if (sub === "hide") values = listModels().map((m) => modelKey(m.provider, m.id));
 			else if (sub === "unhide") values = config.hiddenModels;
 			else if (sub === "hide-provider") values = [...new Set(listModels().map((m) => m.provider))];
 			else if (sub === "unhide-provider") values = config.hiddenProviders;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { DEFAULT_CONFIG, DEFAULT_KEYS, keyLabel, moveFavorite, nextOrder, parseConfig } from "./config.ts";
+import { DEFAULT_CONFIG, DEFAULT_KEYS, keyLabel, moveInOrder, nextOrder, parseConfig } from "./config.ts";
 
 describe("parseConfig", () => {
 	it("returns defaults for missing or invalid input", () => {
@@ -20,7 +20,7 @@ describe("parseConfig", () => {
 				hiddenModels: ["a/b"],
 				hiddenProviders: [],
 				hideOlderThanMonths: 6,
-				favorites: [],
+				customOrder: [],
 				keys: DEFAULT_KEYS,
 			},
 		);
@@ -34,29 +34,32 @@ describe("parseConfig", () => {
 		assert.equal(nextOrder("newest"), "oldest");
 		assert.equal(nextOrder("oldest"), "off");
 		assert.equal(nextOrder("off"), "newest");
+		assert.equal(nextOrder("off", true), "custom");
+		assert.equal(nextOrder("custom", true), "newest");
 	});
 
 	it("rejects unknown order and non-positive months", () => {
 		const parsed = parseConfig({ order: "random", hideOlderThanMonths: -1 });
 		assert.equal(parsed.order, "newest");
 		assert.equal(parsed.hideOlderThanMonths, null);
+		assert.equal(parseConfig({ order: "custom", customOrder: [] }).order, "newest");
+		assert.equal(parseConfig({ order: "custom", customOrder: ["a/b"] }).order, "custom");
 	});
 });
 
-describe("moveFavorite", () => {
-	it("pins an unpinned model at the end when moving up", () => {
-		assert.deepEqual(moveFavorite(["a", "b"], "c", "up"), ["a", "b", "c"]);
+describe("moveInOrder", () => {
+	const base = ["a", "b", "c", "d"];
+	it("moves exactly one row", () => {
+		assert.deepEqual(moveInOrder(base, base, "c", "up"), ["a", "c", "b", "d"]);
+		assert.deepEqual(moveInOrder(base, base, "b", "down"), ["a", "c", "b", "d"]);
 	});
-	it("ignores moving an unpinned model down", () => {
-		assert.deepEqual(moveFavorite(["a"], "c", "down"), ["a"]);
+	it("stops at the edges", () => {
+		assert.equal(moveInOrder(base, base, "a", "up"), undefined);
+		assert.equal(moveInOrder(base, base, "d", "down"), undefined);
 	});
-	it("swaps pinned models", () => {
-		assert.deepEqual(moveFavorite(["a", "b", "c"], "c", "up"), ["a", "c", "b"]);
-		assert.deepEqual(moveFavorite(["a", "b", "c"], "a", "down"), ["b", "a", "c"]);
-	});
-	it("keeps the first one in place and unpins the last one on down", () => {
-		assert.deepEqual(moveFavorite(["a", "b"], "a", "up"), ["a", "b"]);
-		assert.deepEqual(moveFavorite(["a", "b"], "b", "down"), ["a"]);
+	it("steps past the visible neighbour when the list is filtered", () => {
+		assert.deepEqual(moveInOrder(base, ["a", "d"], "d", "up"), ["d", "a", "b", "c"]);
+		assert.deepEqual(moveInOrder(base, ["a", "d"], "a", "down"), ["b", "c", "d", "a"]);
 	});
 	it("labels arrow keys", () => {
 		assert.equal(keyLabel("alt+up"), "alt+↑");

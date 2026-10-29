@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export type Order = "newest" | "oldest" | "off";
+export type Order = "newest" | "oldest" | "off" | "custom";
 
-export const ORDERS: readonly Order[] = ["newest", "oldest", "off"];
+export const ORDERS: readonly Order[] = ["newest", "oldest", "off", "custom"];
 
 export interface Config {
-	/** How the model selector is ordered. "off" keeps pi's built-in order. */
+	/** How the model selector is ordered. "off" keeps pi's built-in order, "custom" uses customOrder. */
 	order: Order;
 	/** Models hidden from the selector, as "provider/id". */
 	hiddenModels: string[];
@@ -14,8 +14,8 @@ export interface Config {
 	hiddenProviders: string[];
 	/** Hide models released more than this many months ago. null = never. */
 	hideOlderThanMonths: number | null;
-	/** Pinned models ("provider/id"), listed first in this exact order. */
-	favorites: string[];
+	/** Your hand-made order ("provider/id", top to bottom), used when order is "custom". */
+	customOrder: string[];
 	/** Keys used inside the /model selector. */
 	keys: Keys;
 }
@@ -27,9 +27,9 @@ export interface Keys {
 	order: string;
 	/** Show or hide the hidden models in the list. */
 	showHidden: string;
-	/** Pin the highlighted model, or move it up among the pinned ones. */
+	/** Move the highlighted model one row up (switches to the custom order). */
 	moveUp: string;
-	/** Move the highlighted pinned model down; on the last one, unpin it. */
+	/** Move the highlighted model one row down (switches to the custom order). */
 	moveDown: string;
 }
 
@@ -46,23 +46,27 @@ export const DEFAULT_CONFIG: Readonly<Config> = Object.freeze({
 	hiddenModels: [],
 	hiddenProviders: [],
 	hideOlderThanMonths: null,
-	favorites: [],
+	customOrder: [],
 	keys: DEFAULT_KEYS,
 });
 
 /**
- * Moves a model one step in the pinned list.
- * Up: a model that is not pinned gets pinned at the end; a pinned one swaps with the one above.
- * Down: a pinned one swaps with the one below; the last pinned one is unpinned.
+ * Moves `key` exactly one row past its neighbour in `visible` (the rows on screen, which may be
+ * filtered by a search). `base` is the full list order to change. Returns undefined at the edge.
  */
-export function moveFavorite(favorites: readonly string[], key: string, dir: "up" | "down"): string[] {
-	const list = [...favorites];
-	const i = list.indexOf(key);
-	if (i < 0) return dir === "up" ? [...list, key] : list;
-	const j = dir === "up" ? i - 1 : i + 1;
-	if (j < 0) return list;
-	if (j >= list.length) return list.filter((k) => k !== key);
-	[list[i], list[j]] = [list[j] as string, list[i] as string];
+export function moveInOrder(
+	base: readonly string[],
+	visible: readonly string[],
+	key: string,
+	dir: "up" | "down",
+): string[] | undefined {
+	const at = visible.indexOf(key);
+	const neighbour = visible[dir === "up" ? at - 1 : at + 1];
+	if (at < 0 || neighbour === undefined) return undefined;
+	const list = base.filter((k) => k !== key);
+	const n = list.indexOf(neighbour);
+	if (n < 0) return undefined;
+	list.splice(dir === "up" ? n : n + 1, 0, key);
 	return list;
 }
 
@@ -71,8 +75,10 @@ export function keyLabel(key: string): string {
 	return key.replace(/\bup\b/, "↑").replace(/\bdown\b/, "↓");
 }
 
-export function nextOrder(order: Order): Order {
-	return ORDERS[(ORDERS.indexOf(order) + 1) % ORDERS.length] ?? "newest";
+/** Next order for the order key; "custom" is skipped until you have arranged models by hand. */
+export function nextOrder(order: Order, hasCustom = false): Order {
+	const cycle = hasCustom ? ORDERS : ORDERS.filter((o) => o !== "custom");
+	return cycle[(cycle.indexOf(order) + 1) % cycle.length] ?? "newest";
 }
 
 export function modelKey(provider: string, id: string): string {
@@ -94,12 +100,14 @@ export function parseConfig(raw: unknown): Config {
 		const value = rawKeys[name];
 		if (typeof value === "string" && value.trim()) keys[name] = value.trim().toLowerCase();
 	}
+	const customOrder = stringList(obj.customOrder);
+	const order = ORDERS.includes(obj.order as Order) ? (obj.order as Order) : DEFAULT_CONFIG.order;
 	return {
 		keys,
-		order: ORDERS.includes(obj.order as Order) ? (obj.order as Order) : DEFAULT_CONFIG.order,
+		order: order === "custom" && customOrder.length === 0 ? DEFAULT_CONFIG.order : order,
 		hiddenModels: stringList(obj.hiddenModels),
 		hiddenProviders: stringList(obj.hiddenProviders),
-		favorites: stringList(obj.favorites),
+		customOrder,
 		hideOlderThanMonths:
 			typeof months === "number" && Number.isFinite(months) && months > 0 ? Math.floor(months) : null,
 	};

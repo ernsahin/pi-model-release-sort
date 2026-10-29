@@ -23,7 +23,7 @@ pi -e npm:pi-model-release-sort
 - `/model` (and its keyboard shortcut) list the newest models first. Models with no known date go to the end.
 - Your current model and default model stay at the top, as in plain pi. They are never hidden.
 - The "scoped" tab is sorted and filtered the same way.
-- You can pin models to keep them at the top in your own order.
+- You can arrange the list by hand, one row at a time.
 - You can hide single models, whole providers, or every model older than N months.
 
 ## In the `/model` window
@@ -39,14 +39,15 @@ Open `/model` as usual. Each model shows its release date, and three extra keys 
 
 | Key | What it does |
 |---|---|
-| `alt+↑` | Pin the highlighted model (★), or move a pinned model up |
-| `alt+↓` | Move a pinned model down; on the last pinned one, unpin it |
+| `alt+↑` | Move the highlighted model one row up |
+| `alt+↓` | Move the highlighted model one row down |
 | `alt+h` | Hide the highlighted model (or unhide it, when hidden models are shown) |
 | `alt+o` | Switch the order: newest → oldest → pi's order |
 | `alt+a` | Show hidden models (marked `hidden`) or hide them again |
 
-Pinned models always come first, in the order you put them. Everything else follows by release date,
-so new models still show up right under your pinned ones.
+The first move switches the order to **custom**: the list stays exactly as you arrange it. `alt+o` switches
+back to date order, and your arrangement is kept for the next time you pick custom. Models you haven't placed
+yet (for example a newly released one) appear at the top, marked `new`, so you can move them where you want.
 
 Typing still searches, and every other key works as in plain pi. If your search only matches hidden
 models, the window tells you so.
@@ -78,7 +79,7 @@ Run `/model-sort` to open the settings panel. It has three tabs (switch with `ta
 | `ctrl+a` | Show every model in the list again |
 | `ctrl+o` | Hide every model below the cursor, e.g. everything older than the highlighted one |
 | `ctrl+p` | Hide or show the highlighted model's whole provider |
-| `alt+↑` / `alt+↓` | Pin and move models, same as in `/model` |
+| `alt+↑` / `alt+↓` | Move the highlighted model one row, same as in `/model` |
 
 Your current and default model are never hidden by bulk actions. If a model is hidden by a provider or age
 rule, the panel says so instead of silently doing nothing.
@@ -86,7 +87,7 @@ rule, the panel says so instead of silently doing nothing.
 **Providers**: `enter` hides or shows all models of a provider.
 
 **Options**: `←`/`→` change the order and the "hide models older than" filter (off, 3, 6, 12, 18, 24 months),
-unpin all models, refresh the release dates, or reset everything (unpin all and reset ask for a second `enter`).
+forget your custom order, refresh the release dates, or reset everything (forgetting and reset ask for a second `enter`).
 
 ### Subcommands
 
@@ -99,8 +100,8 @@ For scripts and quick changes (with autocomplete):
 | `/model-sort off` | pi's built-in order (hiding still applies) |
 | `/model-sort hide <provider/model>` | Hide one model |
 | `/model-sort unhide <provider/model>` | Show it again |
-| `/model-sort pin <provider/model>` | Pin a model (added below the other pinned ones) |
-| `/model-sort unpin <provider/model>` | Unpin it |
+| `/model-sort custom` | Your own order (after you have moved models) |
+| `/model-sort clear-order` | Forget your custom order |
 | `/model-sort hide-provider <provider>` | Hide all models of a provider |
 | `/model-sort unhide-provider <provider>` | Show them again |
 | `/model-sort older-than <months\|off>` | Hide models released more than N months ago |
@@ -116,12 +117,13 @@ Settings are saved in `~/.pi/agent/model-release-sort.json`:
   "hiddenModels": ["openai/gpt-4o"],
   "hiddenProviders": ["openrouter"],
   "hideOlderThanMonths": 12,
-  "favorites": ["anthropic/claude-opus-5-5", "openai-codex/gpt-6.1-sol"],
+  "customOrder": ["anthropic/claude-opus-5-5", "openai-codex/gpt-6.1-sol", "…"],
   "keys": { "hide": "alt+h", "order": "alt+o", "showHidden": "alt+a", "moveUp": "alt+up", "moveDown": "alt+down" }
 }
 ```
 
-`favorites` is the pinned list, top to bottom. Defaults: `order` is `"newest"`, nothing is pinned or hidden, keys as above.
+`order` is `newest`, `oldest`, `off` (pi's order) or `custom` (uses `customOrder`, top to bottom).
+Defaults: `order` is `"newest"`, nothing is hidden, keys as above.
 Key names use pi's format (`alt+h`, `ctrl+shift+x`, …). If a key does not reach pi in your terminal,
 pick another one.
 

@@ -1,7 +1,7 @@
 import { ModelSelectorComponent, type Theme } from "@earendil-works/pi-coding-agent";
 import { type KeyId, matchesKey, Text } from "@earendil-works/pi-tui";
-import { arrangeModels, favoritesFirst, hiddenReason, isHidden } from "./arrange.ts";
-import { keyLabel, modelKey, moveFavorite, nextOrder } from "./config.ts";
+import { arrangeModels, hiddenReason, isHidden, isUnplaced } from "./arrange.ts";
+import { type Config, keyLabel, modelKey, moveInOrder, nextOrder } from "./config.ts";
 import { getDate, state, updateConfig } from "./state.ts";
 
 /*
@@ -30,6 +30,7 @@ interface Selector {
 	[INSTANCE_KEY]?: InstanceState;
 	currentModel?: Ref;
 	scopedModels?: Array<{ model: Ref }>;
+	allModels: Item[];
 	filteredModels: Item[];
 	selectedIndex: number;
 	listContainer: { children: unknown[]; addChild(c: unknown): void };
@@ -90,6 +91,12 @@ function rebuild(self: Selector) {
 	self.tui?.requestRender();
 }
 
+/** Hidden models are not in the visible list; keep their old places at the end instead of dropping them. */
+export function keepHiddenPlaces(next: string[], config: Config): string[] {
+	const seen = new Set(next);
+	return [...next, ...config.customOrder.filter((k) => !seen.has(k))];
+}
+
 function hintLine(self: Selector): string {
 	const { config } = state();
 	const { keys } = config;
@@ -125,7 +132,7 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 		const pin = (item: Item) => pinRank(this, item.model);
 		own.hiddenCount = models.filter((m) => pin(m) === undefined && isHidden(m, config, getDate)).length;
 		const arranged = arrangeModels(models, { config, getDate, pinRank: pin, showHidden: own.showHidden });
-		return config.order === "off" ? favoritesFirst(original.sortModels.call(this, arranged), config.favorites) : arranged;
+		return config.order === "off" ? original.sortModels.call(this, arranged) : arranged;
 	};
 
 	// "Scoped" tab: pi builds it from this.scopedModels, so arrange a copy of the original list.
@@ -141,9 +148,7 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 				pinRank: (item) => pinRank(this, item),
 				showHidden: own.showHidden,
 			});
-			this.scopedModels = (config.order === "off" ? favoritesFirst(arranged, config.favorites) : arranged).map(
-				(item) => item.scoped,
-			);
+			this.scopedModels = arranged.map((item) => item.scoped);
 		}
 		return original.loadModelsFromSnapshot.apply(this, args);
 	};
@@ -162,7 +167,7 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 				if (!item || typeof row?.text !== "string" || !row.setText || !row.text.includes(item.id)) continue;
 				const date = getDate(item.provider, item.id);
 				let badge = date ? paint("dim", ` · ${date}`) : "";
-				if (config.favorites.includes(modelKey(item.provider, item.id))) badge += paint("accent", " ★");
+				if (isUnplaced(item, config)) badge += paint("accent", " · new");
 				if (isHidden(item, config, getDate)) badge += paint("warning", " · hidden");
 				row.setText(row.text + badge);
 			}
@@ -208,23 +213,26 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 			const item = this.filteredModels[this.selectedIndex];
 			if (item) {
 				const dir = keyMatches(data, keys.moveUp) ? "up" : "down";
-				const key = modelKey(item.provider, item.id);
-				const before = state().config.favorites;
-				const after = moveFavorite(before, key, dir);
-				if (dir === "down" && !before.includes(key)) {
-					own.flash = `Only pinned models can be moved. Press ${keyLabel(keys.moveUp)} to pin this one.`;
-				} else if (!before.includes(key)) {
-					own.flash = `Pinned ${item.id}. Keep pressing ${keyLabel(keys.moveUp)} to move it higher.`;
-				} else if (!after.includes(key)) {
-					own.flash = `Unpinned ${item.id}; it is back in date order.`;
+				const config = state().config;
+				const keyOf = (m: Ref) => modelKey(m.provider, m.id);
+				// The "all" list as shown now is the starting point, so the first move changes nothing else.
+				const next = moveInOrder(this.allModels.map(keyOf), this.filteredModels.map(keyOf), keyOf(item), dir);
+				if (!next) {
+					own.flash = dir === "up" ? "Already at the top." : "Already at the bottom.";
+					this.updateList();
+					this.tui?.requestRender();
+				} else {
+					if (config.order !== "custom") {
+						own.flash = `Custom order on. ${keys.order} switches back to date order; your order is kept.`;
+					}
+					updateConfig((c) => ({ ...c, order: "custom", customOrder: keepHiddenPlaces(next, c) }));
+					rebuild(this);
 				}
-				updateConfig((c) => ({ ...c, favorites: after }));
-				rebuild(this);
 			}
 			return;
 		}
 		if (keyMatches(data, keys.order)) {
-			updateConfig((c) => ({ ...c, order: nextOrder(c.order) }));
+			updateConfig((c) => ({ ...c, order: nextOrder(c.order, c.customOrder.length > 0) }));
 			rebuild(this);
 			return;
 		}

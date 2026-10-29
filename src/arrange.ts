@@ -56,19 +56,11 @@ export interface ArrangeOptions<T> {
 	now?: Date;
 }
 
-/** Puts pinned favorites first, in the user's order. Everything else keeps its relative order. */
-export function favoritesFirst<T extends ModelRef>(items: readonly T[], favorites: readonly string[]): T[] {
-	if (favorites.length === 0) return [...items];
-	const rank = new Map(favorites.map((key, i) => [key, i]));
-	const pinned = items.filter((m) => rank.has(modelKey(m.provider, m.id)));
-	pinned.sort((a, b) => (rank.get(modelKey(a.provider, a.id)) ?? 0) - (rank.get(modelKey(b.provider, b.id)) ?? 0));
-	return [...pinned, ...items.filter((m) => !rank.has(modelKey(m.provider, m.id)))];
-}
-
 /**
- * Removes hidden models and sorts the rest: favorites first (in the user's order), then pinned
- * current/default models, then by release date. With order "off", only hiding is applied and the
- * caller sorts (favorites are moved first afterwards).
+ * Removes hidden models and sorts the rest.
+ * - "newest" / "oldest": current and default model first (like pi), then by release date.
+ * - "custom": models you have not placed yet (new ones) first, newest first, then your order.
+ * - "off": only hiding is applied; the caller sorts.
  */
 export function arrangeModels<T extends ModelRef>(items: readonly T[], opts: ArrangeOptions<T>): T[] {
 	const { config, getDate, pinRank = () => undefined, now, showHidden = false } = opts;
@@ -76,12 +68,23 @@ export function arrangeModels<T extends ModelRef>(items: readonly T[], opts: Arr
 		(item) => showHidden || pinRank(item) !== undefined || !isHidden(item, config, getDate, now),
 	);
 	if (config.order === "off") return visible;
+	if (config.order === "custom") {
+		const rank = new Map(config.customOrder.map((key, i) => [key, i]));
+		const place = (m: T) => rank.get(modelKey(m.provider, m.id));
+		const unplaced = visible.filter((m) => place(m) === undefined).sort((a, b) => compareByDate(a, b, "newest", getDate));
+		const placed = visible.filter((m) => place(m) !== undefined).sort((a, b) => (place(a) ?? 0) - (place(b) ?? 0));
+		return [...unplaced, ...placed];
+	}
 	const order = config.order;
-	const sorted = visible.sort((a, b) => {
+	return visible.sort((a, b) => {
 		const ra = pinRank(a) ?? Number.POSITIVE_INFINITY;
 		const rb = pinRank(b) ?? Number.POSITIVE_INFINITY;
 		if (ra !== rb) return ra - rb;
 		return compareByDate(a, b, order, getDate);
 	});
-	return favoritesFirst(sorted, config.favorites);
+}
+
+/** True when the custom order is active and this model has no place in it yet. */
+export function isUnplaced(model: ModelRef, config: Config): boolean {
+	return config.order === "custom" && !config.customOrder.includes(modelKey(model.provider, model.id));
 }

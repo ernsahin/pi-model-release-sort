@@ -75,16 +75,20 @@ describe("SettingsPanel", () => {
 		assert.equal(state().config.hiddenModels.length, 0);
 	});
 
-	it("pins with alt+up and the cursor follows the model", () => {
+	it("alt+up/down move one row at a time and the cursor follows", () => {
 		const { press, selected } = setup();
-		press(K.down, K.down, K.down, K.altUp); // a/m06
-		assert.deepEqual(state().config.favorites, ["a/m06"]);
-		assert.match(selected(), /a\/m06 ★/);
-		press(K.down, K.altUp, K.altUp); // a/m00 is now row 2: pin it, then move above a/m06
-		assert.deepEqual(state().config.favorites, ["a/m00", "a/m06"]);
-		assert.match(selected(), /a\/m00 ★/);
-		press(K.altDown, K.altDown); // back below a/m06, then unpinned
-		assert.deepEqual(state().config.favorites, ["a/m06"]);
+		const order = () => state().config.customOrder.slice(0, 4);
+		press(K.down, K.down, K.altUp); // a/m04 one row up
+		assert.equal(state().config.order, "custom");
+		assert.deepEqual(order(), ["a/m00", "a/m04", "a/m02", "a/m06"]);
+		assert.match(selected(), /a\/m04/);
+		press(K.altUp); // to the top
+		assert.deepEqual(order(), ["a/m04", "a/m00", "a/m02", "a/m06"]);
+		press(K.altUp); // already at the top: nothing changes
+		assert.deepEqual(order(), ["a/m04", "a/m00", "a/m02", "a/m06"]);
+		press(K.altDown); // one row down again
+		assert.deepEqual(order(), ["a/m00", "a/m04", "a/m02", "a/m06"]);
+		assert.match(selected(), /a\/m04/);
 	});
 
 	it("hides providers from the Providers tab", () => {

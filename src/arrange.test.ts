@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { arrangeModels, cutoffDate, favoritesFirst, isHidden } from "./arrange.ts";
+import { arrangeModels, cutoffDate, isHidden, isUnplaced } from "./arrange.ts";
 import { type Config, parseConfig } from "./config.ts";
 
 const dates: Record<string, string> = {
@@ -64,20 +64,19 @@ describe("arrangeModels", () => {
 		]);
 	});
 
-	it("lists pinned favorites first in the user's order, before current/default", () => {
-		const config = cfg({ favorites: ["a/old", "x/unknown"] });
+	it("custom order: unplaced models first (newest first), then your order; no current/default pin", () => {
+		const config = cfg({ order: "custom", customOrder: ["a/old", "b/new", "a/mid"] });
 		const pinRank = (m: { id: string }) => (m.id === "mid" ? 0 : undefined);
 		assert.deepEqual(ids(arrangeModels(models, { config, getDate, pinRank })), [
-			"old",
-			"unknown",
-			"mid",
-			"new",
 			"newer-same-day",
+			"unknown",
+			"old",
+			"new",
+			"mid",
 		]);
-	});
-
-	it("favoritesFirst keeps the rest in place", () => {
-		assert.deepEqual(ids(favoritesFirst(models, ["b/new", "a/old"])), ["new", "old", "unknown", "mid", "newer-same-day"]);
+		assert.equal(isUnplaced({ provider: "x", id: "unknown" }, config), true);
+		assert.equal(isUnplaced({ provider: "a", id: "old" }, config), false);
+		assert.equal(isUnplaced({ provider: "x", id: "unknown" }, cfg()), false);
 	});
 
 	it("does not mutate its input", () => {
