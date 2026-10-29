@@ -1,0 +1,15 @@
+{
+  "name": "pi-model-release-sort",
+  "version": "0.1.0",
+  "description": "Sort pi's model selector by release date (newest first) instead of alphabetically.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package", "pi", "models"],
+  "files": ["extensions", "README.md"],
+  "pi": {
+    "extensions": ["./extensions/index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
