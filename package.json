@@ -1,15 +1,52 @@
 {
   "name": "pi-model-release-sort",
-  "version": "0.1.0",
-  "description": "Sort pi's model selector by release date (newest first) instead of alphabetically.",
+  "version": "0.2.0",
+  "description": "Sort pi's /model list by release date (newest first) and hide the models you don't use.",
   "type": "module",
   "license": "MIT",
-  "keywords": ["pi-package", "pi", "models"],
-  "files": ["extensions", "README.md"],
+  "author": "Eren Sahin",
+  "homepage": "https://github.com/ernsahin/pi-model-release-sort#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ernsahin/pi-model-release-sort.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ernsahin/pi-model-release-sort/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "models",
+    "model-selector"
+  ],
+  "files": [
+    "src",
+    "!src/**/*.test.ts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "pi": {
-    "extensions": ["./extensions/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test",
+    "prepublishOnly": "npm run check"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@types/node": "^22.19.0",
+    "typescript": "^5.9.3"
   }
 }
