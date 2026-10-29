@@ -1,13 +1,14 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { isHidden } from "./arrange.ts";
+import fs from "node:fs";
+import path from "node:path";
+import { type ExtensionAPI, type ExtensionCommandContext, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { type Config, DEFAULT_CONFIG, modelKey, ORDERS, type Order, parseConfig } from "./config.ts";
-import { getDate, refreshDates, state, updateConfig } from "./state.ts";
+import { SettingsPanel } from "./settings-panel.ts";
+import { refreshDates, state, updateConfig } from "./state.ts";
 
 type Ctx = ExtensionCommandContext;
 type ModelRef = { provider: string; id: string };
 
 const AGE_CHOICES = [3, 6, 12, 18, 24] as const;
-const DONE = "← Done";
 
 const SUBCOMMANDS: Record<string, string> = {
 	newest: "Newest release first",
@@ -38,72 +39,6 @@ function describe(config: Config): string {
 	return parts.join(" · ");
 }
 
-function sortedModels(models: ModelRef[]): ModelRef[] {
-	return [...models].sort((a, b) => {
-		const da = getDate(a.provider, a.id) ?? "";
-		const db = getDate(b.provider, b.id) ?? "";
-		return db.localeCompare(da) || modelKey(a.provider, a.id).localeCompare(modelKey(b.provider, b.id));
-	});
-}
-
-async function pickOrder(ctx: Ctx) {
-	const labels: Record<Order, string> = {
-		newest: "Newest first",
-		oldest: "Oldest first",
-		off: "pi's built-in order",
-	};
-	const picked = await ctx.ui.select(
-		"Order",
-		ORDERS.map((o) => `${o === state().config.order ? "● " : "○ "}${labels[o]}`),
-	);
-	const order = ORDERS.find((o) => picked?.endsWith(labels[o]));
-	if (order) updateConfig((c) => ({ ...c, order }));
-}
-
-async function pickHiddenModels(ctx: Ctx) {
-	const models = sortedModels(ctx.modelRegistry.getAvailable());
-	if (models.length === 0) {
-		ctx.ui.notify("No models available. Use /login to add a provider.", "warning");
-		return;
-	}
-	for (;;) {
-		const hidden = new Set(state().config.hiddenModels);
-		const rows = models.map((m) => {
-			const key = modelKey(m.provider, m.id);
-			const date = getDate(m.provider, m.id) ?? "no date";
-			return { key, label: `${hidden.has(key) ? "[hidden]" : "[shown] "} ${key}  (${date})` };
-		});
-		const picked = await ctx.ui.select("Hide models — select to toggle", [DONE, ...rows.map((r) => r.label)]);
-		const row = rows.find((r) => r.label === picked);
-		if (!row) return;
-		updateConfig((c) => ({ ...c, hiddenModels: toggle(c.hiddenModels, row.key, !hidden.has(row.key)) }));
-	}
-}
-
-async function pickHiddenProviders(ctx: Ctx) {
-	const providers = [...new Set(ctx.modelRegistry.getAvailable().map((m) => m.provider))].sort();
-	for (;;) {
-		const hidden = new Set(state().config.hiddenProviders);
-		const rows = providers.map((p) => ({ p, label: `${hidden.has(p) ? "[hidden]" : "[shown] "} ${p}` }));
-		const picked = await ctx.ui.select("Hide providers — select to toggle", [DONE, ...rows.map((r) => r.label)]);
-		const row = rows.find((r) => r.label === picked);
-		if (!row) return;
-		updateConfig((c) => ({ ...c, hiddenProviders: toggle(c.hiddenProviders, row.p, !hidden.has(row.p)) }));
-	}
-}
-
-async function pickAge(ctx: Ctx) {
-	const current = state().config.hideOlderThanMonths;
-	const options = ["off", ...AGE_CHOICES.map(String)];
-	const picked = await ctx.ui.select(
-		"Hide models released more than N months ago",
-		options.map((o) => `${(o === "off" ? null : Number(o)) === current ? "● " : "○ "}${o === "off" ? "Off" : `${o} months`}`),
-	);
-	if (!picked) return;
-	const months = picked.endsWith("Off") ? null : Number.parseInt(picked.slice(2), 10);
-	updateConfig((c) => ({ ...c, hideOlderThanMonths: months }));
-}
-
 async function doRefresh(ctx: Ctx) {
 	try {
 		const index = await refreshDates(true);
@@ -113,32 +48,25 @@ async function doRefresh(ctx: Ctx) {
 	}
 }
 
-async function mainMenu(ctx: Ctx) {
-	for (;;) {
-		const c = state().config;
-		const hiddenNow = ctx.modelRegistry
-			.getAvailable()
-			.filter((m) => isHidden(m, c, getDate)).length;
-		const items = {
-			order: `Order: ${c.order}`,
-			models: `Hide models… (${c.hiddenModels.length} selected)`,
-			providers: `Hide providers… (${c.hiddenProviders.length} selected)`,
-			age: `Hide older than: ${c.hideOlderThanMonths ? `${c.hideOlderThanMonths} months` : "off"}`,
-			refresh: "Refresh release dates",
-			reset: "Reset to defaults",
-		};
-		const picked = await ctx.ui.select(`Model list · ${hiddenNow} hidden`, [...Object.values(items), DONE]);
-		const action = (Object.keys(items) as Array<keyof typeof items>).find((k) => items[k] === picked);
-		if (!action) return;
-		if (action === "order") await pickOrder(ctx);
-		else if (action === "models") await pickHiddenModels(ctx);
-		else if (action === "providers") await pickHiddenProviders(ctx);
-		else if (action === "age") await pickAge(ctx);
-		else if (action === "refresh") await doRefresh(ctx);
-		else if (action === "reset" && (await ctx.ui.confirm("Reset", "Restore default settings?"))) {
-			updateConfig(() => parseConfig(DEFAULT_CONFIG));
-		}
+function readDefaultModel(): ModelRef | undefined {
+	try {
+		const s = JSON.parse(fs.readFileSync(path.join(getAgentDir(), "settings.json"), "utf8"));
+		return typeof s.defaultProvider === "string" && typeof s.defaultModel === "string"
+			? { provider: s.defaultProvider, id: s.defaultModel }
+			: undefined;
+	} catch {
+		return undefined;
 	}
+}
+
+async function openPanel(ctx: Ctx) {
+	const models = ctx.modelRegistry.getAvailable();
+	const current = ctx.model;
+	const def = readDefaultModel();
+	const same = (a: ModelRef | undefined, b: ModelRef) => a?.provider === b.provider && a.id === b.id;
+	const pinned = (m: ModelRef) => (same(current, m) ? "current" : same(def, m) ? "default" : undefined);
+	await ctx.ui.custom<void>((tui, theme, _keybindings, done) => new SettingsPanel(tui, theme, models, pinned, () => done()));
+	ctx.ui.notify(describe(state().config), "info");
 }
 
 async function runArgs(args: string, ctx: Ctx) {
@@ -195,7 +123,7 @@ export function registerCommand(pi: ExtensionAPI, listModels: () => ModelRef[]) 
 		},
 		handler: async (args, ctx) => {
 			if (args.trim()) return runArgs(args, ctx);
-			if (ctx.hasUI) return mainMenu(ctx);
+			if (ctx.mode === "tui") return openPanel(ctx);
 			ctx.ui.notify(describe(state().config), "info");
 		},
 	});

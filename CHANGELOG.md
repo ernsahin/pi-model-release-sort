@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-29
+
+### Changed
+
+- `/model-sort` opens a new settings panel with Models, Providers and Options tabs instead of a chain of menus.
+  The list fits the terminal and scrolls, the cursor stays in place after a change, and models can be searched.
+
+### Added
+
+- Bulk actions: hide or show all listed models, hide everything below the cursor, toggle a whole provider.
+- `/model`: a message explains why a model can't be unhidden (provider or age rule) and when a search only
+  matches hidden models.
+
+### Fixed
+
+- Lower rows of the model list were cut off and the list jumped back to the top after every toggle.
+
 ## [0.3.0] - 2026-10-29
 
 ### Added

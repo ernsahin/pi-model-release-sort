@@ -1,6 +1,6 @@
 import { ModelSelectorComponent, type Theme } from "@earendil-works/pi-coding-agent";
 import { type KeyId, matchesKey, Text } from "@earendil-works/pi-tui";
-import { arrangeModels, isHidden } from "./arrange.ts";
+import { arrangeModels, hiddenReason, isHidden } from "./arrange.ts";
 import { modelKey, nextOrder } from "./config.ts";
 import { getDate, state, updateConfig } from "./state.ts";
 
@@ -21,6 +21,8 @@ type Item = Ref & { model: Ref };
 interface InstanceState {
 	showHidden: boolean;
 	hiddenCount: number;
+	/** One-line message shown under the list until the next key press. */
+	flash?: string;
 	scopedSource?: Array<{ model: Ref }>;
 }
 
@@ -92,6 +94,10 @@ function hintLine(self: Selector): string {
 	const { config } = state();
 	const { keys } = config;
 	const own = inst(self);
+	if (own.flash) return paint("warning", `  ${own.flash}`);
+	if (!own.showHidden && own.hiddenCount > 0 && self.filteredModels.length === 0) {
+		return paint("warning", `  No visible match. ${own.hiddenCount} models are hidden: press ${keys.showHidden} to include them.`);
+	}
 	const parts = [
 		`${keys.hide} hide/unhide`,
 		`${keys.order} order: ${config.order}`,
@@ -164,10 +170,24 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 	// Keys inside the selector.
 	proto.handleInput = function (this: Selector, data: string) {
 		const { keys } = state().config;
+		const own = inst(this);
+		const hadFlash = own.flash !== undefined;
+		own.flash = undefined;
 		if (keyMatches(data, keys.hide)) {
 			const item = this.filteredModels[this.selectedIndex];
-			if (item) {
+			const reason = item ? hiddenReason(item, state().config, getDate) : undefined;
+			if (item && (reason === "provider" || reason === "age")) {
+				own.flash =
+					reason === "provider"
+						? `Hidden because provider "${item.provider}" is hidden. Change it in /model-sort.`
+						: `Hidden by the age filter. Change it in /model-sort.`;
+				this.updateList();
+				this.tui?.requestRender();
+			} else if (item) {
 				const key = modelKey(item.provider, item.id);
+				if (reason !== "model" && pinRank(this, item.model) !== undefined) {
+					own.flash = `Hidden, but still listed because it is your current or default model.`;
+				}
 				updateConfig((c) => ({
 					...c,
 					hiddenModels: c.hiddenModels.includes(key)
@@ -184,11 +204,13 @@ export function patchModelSelector(themeSource: () => Theme | undefined): boolea
 			return;
 		}
 		if (keyMatches(data, keys.showHidden)) {
-			inst(this).showHidden = !inst(this).showHidden;
+			own.showHidden = !own.showHidden;
 			rebuild(this);
 			return;
 		}
-		return original.handleInput.call(this, data);
+		const result = original.handleInput.call(this, data);
+		if (hadFlash) this.updateList(); // clear the message
+		return result;
 	};
 	return true;
 }

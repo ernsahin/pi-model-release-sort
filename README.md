@@ -42,24 +42,48 @@ Open `/model` as usual. Each model shows its release date, and three extra keys 
 | `alt+o` | Switch the order: newest → oldest → pi's order |
 | `alt+a` | Show hidden models (marked `hidden`) or hide them again |
 
-Typing still searches, and every other key works as in plain pi.
+Typing still searches, and every other key works as in plain pi. If your search only matches hidden
+models, the window tells you so.
 The keys can be changed in the settings file (see below).
 
-## Settings
+## Settings panel
 
-For providers and age-based hiding, run `/model-sort` to open the settings menu:
+Run `/model-sort` to open the settings panel. It has three tabs (switch with `tab`) and saves every change at once.
 
 ```
-Model list · 12 hidden
-  Order: newest
-  Hide models… (3 selected)
-  Hide providers… (1 selected)
-  Hide older than: 12 months
-  Refresh release dates
-  Reset to defaults
+ Model list  [Models]  Providers   Options    12 of 40 hidden
+> claude
+
+→ shown   anthropic/claude-sonnet-5-5  2026-09-28
+  hidden  anthropic/claude-opus-4-1  2025-08-05
+  hidden  anthropic/claude-3-opus  2024-02-29 · by provider
+  (1/18) ↓ more
+
+  type to search · enter hide/show · ctrl+p hide/show provider
+  ctrl+x hide all listed · ctrl+a show all listed · ctrl+o hide all below · tab next tab · esc close
 ```
 
-Or use subcommands (with autocomplete):
+**Models**: type to search, then
+
+| Key | What it does |
+|---|---|
+| `enter` | Hide or show the highlighted model (the cursor stays where it is) |
+| `ctrl+x` | Hide every model in the list (only the search matches, if you searched) |
+| `ctrl+a` | Show every model in the list again |
+| `ctrl+o` | Hide every model below the cursor, e.g. everything older than the highlighted one |
+| `ctrl+p` | Hide or show the highlighted model's whole provider |
+
+Your current and default model are never hidden by bulk actions. If a model is hidden by a provider or age
+rule, the panel says so instead of silently doing nothing.
+
+**Providers**: `enter` hides or shows all models of a provider.
+
+**Options**: `←`/`→` change the order and the "hide models older than" filter (off, 3, 6, 12, 18, 24 months),
+refresh the release dates, or reset everything (press `enter` twice).
+
+### Subcommands
+
+For scripts and quick changes (with autocomplete):
 
 | Command | What it does |
 |---|---|

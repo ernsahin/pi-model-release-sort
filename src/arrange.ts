@@ -13,15 +13,27 @@ export function cutoffDate(months: number, now = new Date()): string {
 	return d.toISOString().slice(0, 10);
 }
 
-export function isHidden(model: ModelRef, config: Config, getDate: DateLookup, now = new Date()): boolean {
-	if (config.hiddenProviders.includes(model.provider)) return true;
-	if (config.hiddenModels.includes(modelKey(model.provider, model.id))) return true;
+export type HiddenReason = "model" | "provider" | "age";
+
+/** Why a model is hidden, or undefined when it is shown. */
+export function hiddenReason(
+	model: ModelRef,
+	config: Config,
+	getDate: DateLookup,
+	now = new Date(),
+): HiddenReason | undefined {
+	if (config.hiddenModels.includes(modelKey(model.provider, model.id))) return "model";
+	if (config.hiddenProviders.includes(model.provider)) return "provider";
 	if (config.hideOlderThanMonths) {
 		const date = getDate(model.provider, model.id);
 		// Models without a known date are never hidden by age.
-		if (date && date < cutoffDate(config.hideOlderThanMonths, now)) return true;
+		if (date && date < cutoffDate(config.hideOlderThanMonths, now)) return "age";
 	}
-	return false;
+	return undefined;
+}
+
+export function isHidden(model: ModelRef, config: Config, getDate: DateLookup, now = new Date()): boolean {
+	return hiddenReason(model, config, getDate, now) !== undefined;
 }
 
 /** Newest (or oldest) first; models without a known date go last; ties by provider, then id. */
