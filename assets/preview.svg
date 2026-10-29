@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="pi model selector sorted by release date, newest first, with dates, a hidden model and the extra keys">
+  <title>pi-model-release-sort: the /model list sorted by release date</title>
+  <desc>The pi /model window. Models are listed newest first with their release date. One row is marked hidden, one model was moved by hand, and the hint line shows alt+h hide, alt+up/down move, alt+o order and alt+a show hidden.</desc>
+  <rect width="1920" height="1080" fill="#23273b"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" xml:space="preserve" style="white-space:pre">
+    <!-- heading -->
+    <text x="120" y="130" font-size="40" fill="#8a8fa8">/model · newest first</text>
+
+    <!-- top border -->
+    <rect x="120" y="175" width="1680" height="4" fill="#5aa9d6"/>
+
+    <!-- search line -->
+    <text x="120" y="270" font-size="46" fill="#d4d4d4">&gt; <tspan fill="#d4d4d4">█</tspan></text>
+
+    <!-- rows -->
+    <g font-size="48">
+      <text x="120" y="380"><tspan fill="#b4a7f5">→ ✓</tspan><tspan x="235" fill="#b4a7f5">gpt-6.1-sol</tspan><tspan fill="#8a8fa8"> [openai-codex]</tspan><tspan fill="#6b7089"> · 2026-09-29</tspan></text>
+      <text x="120" y="458"><tspan x="235" fill="#d4d4d4">claude-sonnet-5-5</tspan><tspan fill="#8a8fa8"> [anthropic]</tspan><tspan fill="#6b7089"> · 2026-09-28</tspan></text>
+      <text x="120" y="536"><tspan x="235" fill="#d4d4d4">claude-opus-5-5</tspan><tspan fill="#8a8fa8"> [anthropic]</tspan><tspan fill="#6b7089"> · 2026-09-22</tspan></text>
+      <text x="120" y="614"><tspan x="235" fill="#d4d4d4">gpt-6-luna</tspan><tspan fill="#8a8fa8"> [openai-codex]</tspan><tspan fill="#6b7089"> · 2026-09-22</tspan></text>
+      <text x="120" y="692"><tspan x="235" fill="#d4d4d4">gpt-6-astra</tspan><tspan fill="#8a8fa8"> [openai-codex]</tspan><tspan fill="#6b7089"> · 2026-09-04</tspan></text>
+      <text x="120" y="770"><tspan x="235" fill="#d4d4d4">claude-fable-5-1</tspan><tspan fill="#8a8fa8"> [anthropic]</tspan><tspan fill="#6b7089"> · 2026-09-01</tspan></text>
+      <text x="120" y="848"><tspan x="235" fill="#8a8fa8">gpt-5.6-sol</tspan><tspan fill="#8a8fa8"> [openai-codex]</tspan><tspan fill="#6b7089"> · 2026-07-09</tspan><tspan fill="#e5c07b"> · hidden</tspan></text>
+    </g>
+
+    <!-- hint line -->
+    <text x="120" y="950" font-size="36"><tspan fill="#b4a7f5">alt+h</tspan><tspan fill="#8a8fa8"> hide · </tspan><tspan fill="#b4a7f5">alt+↑/↓</tspan><tspan fill="#8a8fa8"> move · </tspan><tspan fill="#b4a7f5">alt+o</tspan><tspan fill="#8a8fa8"> order: newest · </tspan><tspan fill="#b4a7f5">alt+a</tspan><tspan fill="#8a8fa8"> show hidden (18)</tspan></text>
+
+    <!-- bottom border -->
+    <rect x="120" y="1000" width="1680" height="4" fill="#5aa9d6"/>
+  </g>
+</svg>

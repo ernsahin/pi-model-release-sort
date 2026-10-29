@@ -6,6 +6,8 @@ instead of by provider name, and lets you **hide** the models you never use.
 [![CI](https://github.com/ernsahin/pi-model-release-sort/actions/workflows/ci.yml/badge.svg)](https://github.com/ernsahin/pi-model-release-sort/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/pi-model-release-sort)](https://www.npmjs.com/package/pi-model-release-sort)
 
+![The /model list sorted by release date](assets/preview.svg)
+
 ## Install
 
 ```bash

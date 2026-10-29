@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-29
+
+### Added
+
+- Preview image for the pi.dev package gallery.
+
 ## [0.6.0] - 2026-10-29
 
 ### Changed

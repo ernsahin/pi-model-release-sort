@@ -1,6 +1,6 @@
 {
   "name": "pi-model-release-sort",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Sort pi's /model list by release date and hide the models you don't use, right from the model selector.",
   "type": "module",
   "license": "MIT",
@@ -28,6 +28,7 @@
     "CHANGELOG.md"
   ],
   "pi": {
+    "image": "https://raw.githubusercontent.com/ernsahin/pi-model-release-sort/main/assets/preview.svg",
     "extensions": [
       "./src/index.ts"
     ]
